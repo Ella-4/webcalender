@@ -296,6 +296,21 @@ st.markdown("""
         box-shadow: 0 2px 8px rgba(220, 38, 38, 0.15);
     }
     
+    /* 지난 마감일 스타일 */
+    .deadline-item.expired {
+        background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+        color: #6b7280;
+        border-left-color: #9ca3af;
+        box-shadow: 0 2px 8px rgba(156, 163, 175, 0.1);
+        text-decoration: line-through;
+        opacity: 0.7;
+    }
+    
+    .deadline-item.expired::before {
+        content: '⏰ ';
+        opacity: 0.5;
+    }
+    
     /* 빈 상태 */
     .empty-state {
         text-align: center;
@@ -378,7 +393,25 @@ def load_conferences_from_supabase(year, month):
     except Exception as e:
         return [], str(e)
 
-
+# 마감일 상태 확인 함수
+def get_deadline_status(deadline_str):
+    """마감일 상태를 반환 (expired, urgent, normal)"""
+    if not deadline_str:
+        return "normal"
+    
+    try:
+        deadline_date = datetime.strptime(deadline_str, "%Y-%m-%d").date()
+        today = datetime.now().date()
+        days_left = (deadline_date - today).days
+        
+        if days_left < 0:  # 지난 날짜
+            return "expired"
+        elif days_left <= 30:  # 30일 이내
+            return "urgent"
+        else:
+            return "normal"
+    except:
+        return "normal"
 
 # 날짜 포맷팅
 def format_date(date_str):
@@ -591,26 +624,42 @@ def main():
             # 현재 선택된 학회 1건만 표시
             conf = filtered_conferences[st.session_state.conf_idx]
 
-            # 마감 뱃지 만들기
+            # 마감 뱃지 만들기 (개선된 버전)
             deadlines_html = ""
-            try:
-                if conf.get('abstract_deadline'):
-                    deadline_date = datetime.strptime(conf['abstract_deadline'], "%Y-%m-%d").date()
-                    days_left = (deadline_date - datetime.now().date()).days
-                    is_urgent = 0 <= days_left <= 30
-                    deadline_class = "deadline-item urgent" if is_urgent else "deadline-item"
-                    deadlines_html += f'<div class="{deadline_class}">📝 초록마감: {format_date_short(conf["abstract_deadline"])}</div>'
-            except:
-                pass
-            try:
-                if conf.get('registration_deadline'):
-                    deadline_date = datetime.strptime(conf['registration_deadline'], "%Y-%m-%d").date()
-                    days_left = (deadline_date - datetime.now().date()).days
-                    is_urgent = 0 <= days_left <= 30
-                    deadline_class = "deadline-item urgent" if is_urgent else "deadline-item"
-                    deadlines_html += f'<div class="{deadline_class}">✅ 등록마감: {format_date_short(conf["registration_deadline"])}</div>'
-            except:
-                pass
+            
+            # 초록 마감
+            if conf.get('abstract_deadline'):
+                status = get_deadline_status(conf['abstract_deadline'])
+                deadline_class = f"deadline-item {status}"
+                
+                if status == "expired":
+                    deadlines_html += f'<div class="{deadline_class}">📝 초록접수 마감: {format_date_short(conf["abstract_deadline"])} (마감됨)</div>'
+                elif status == "urgent":
+                    try:
+                        deadline_date = datetime.strptime(conf['abstract_deadline'], "%Y-%m-%d").date()
+                        days_left = (deadline_date - datetime.now().date()).days
+                        deadlines_html += f'<div class="{deadline_class}">📝 초록접수 마감: {format_date_short(conf["abstract_deadline"])} (D-{days_left})</div>'
+                    except:
+                        deadlines_html += f'<div class="{deadline_class}">📝 초록접수 마감: {format_date_short(conf["abstract_deadline"])}</div>'
+                else:
+                    deadlines_html += f'<div class="{deadline_class}">📝 초록접수 마감: {format_date_short(conf["abstract_deadline"])}</div>'
+            
+            # 등록 마감
+            if conf.get('registration_deadline'):
+                status = get_deadline_status(conf['registration_deadline'])
+                deadline_class = f"deadline-item {status}"
+                
+                if status == "expired":
+                    deadlines_html += f'<div class="{deadline_class}">✅ 사전접수 마감: {format_date_short(conf["registration_deadline"])} (마감됨)</div>'
+                elif status == "urgent":
+                    try:
+                        deadline_date = datetime.strptime(conf['registration_deadline'], "%Y-%m-%d").date()
+                        days_left = (deadline_date - datetime.now().date()).days
+                        deadlines_html += f'<div class="{deadline_class}">✅ 사전접수 마감: {format_date_short(conf["registration_deadline"])} (D-{days_left})</div>'
+                    except:
+                        deadlines_html += f'<div class="{deadline_class}">✅ 사전접수 마감: {format_date_short(conf["registration_deadline"])}</div>'
+                else:
+                    deadlines_html += f'<div class="{deadline_class}">✅ 사전접수 마감: {format_date_short(conf["registration_deadline"])}</div>'
 
             deadlines_section = f'<div class="deadline-section">{deadlines_html}</div>' if deadlines_html else ""
 
@@ -625,14 +674,15 @@ def main():
                 <div class="event-card-title">{conf['title']}</div>
                 <div class="event-card-date"><span>{date_range}</span></div>
                 <div class="event-card-location"><span>{conf.get('location') or '장소 미정'}</span></div>
-                <div class="event-card-department">{conf.get('department') or ''}</div>
+                <div class="event-card-department">{conf.get('department') or '부서 미정'}</div>
                 {deadlines_section}
             </div>
             ''', unsafe_allow_html=True)
 
-            # 상세정보 토글
-            with st.expander("상세 정보", expanded=False):
-                st.write(f"**설명:** {conf.get('description', '')}")
+            # Description 토글
+            with st.expander("Description", expanded=False):
+                description = conf.get('description', '') or ''
+                st.write(f"**설명:** {description}")
 
             st.markdown('</div>', unsafe_allow_html=True)
 
