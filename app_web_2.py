@@ -532,9 +532,9 @@ def main():
         selected_year = st.selectbox("연도", year_options, index=0)
         
         if selected_year == 2025:
-            month_options = list(range(8, 13))  # 8월부터 12월
-            month_names = ['8월', '9월', '10월', '11월', '12월']
-            default_idx = 2 if datetime.now().month >= 10 else 0
+            month_options = list(range(9, 13))  # 8월부터 12월
+            month_names = ['9월', '10월', '11월', '12월']
+            default_idx = 1 if datetime.now().month >= 10 else 0
             selected_month_idx = st.selectbox("월", range(len(month_names)), 
                                             format_func=lambda x: month_names[x], index=default_idx)
             selected_month = month_options[selected_month_idx]
